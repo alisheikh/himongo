@@ -1,0 +1,40 @@
+
+This is a hacked implementation of Hive over MongoDB.
+
+
+Installation
+------------------
+
+$ git clone https://github.com/varund/himongo.git
+$ cd himongo
+$ mvn package
+
+This will create target/himongo-1.0-SNAPSHOT-jar-with-dependencies.jar
+
+Now enter to Hive shell and add this jar.
+
+Hive> add jar /path/to/himongo-1.0-SNAPSHOT-jar-with-dependencies.jar
+
+Create a table in Hive which should be a mapped table to your table into mongodb.
+
+------------- <Sample document in mongodb> ----------------
+{
+       "name" : "Varun",
+       "addr" : {
+               "lines" : [
+                       "l1 addr",
+                       "l2 addr"
+               ]
+       }
+}
+------------- </Sample document in mongodb> -------------- 
+
+Hive> create external table t1 (id string, name string,addr Map<String,Array<string>>) stored by "org.uv.himongo.MongoStorageHandler" 
+with serdeproperties ( "mongo.column.mapping" = "id,name,addr") tblproperties ( "mongo.host" = "192.168.2.4", "mongo.port" = "27017",
+ "mongo.db" = "mtest", "mongo.user" = "test", "mongo.passwd" = "test", "mongo.collection" ="atest");
+
+
+Now you can run Hive queries on this table.
+
+Hive> select explode(addr['lines']) t from t1;
+
