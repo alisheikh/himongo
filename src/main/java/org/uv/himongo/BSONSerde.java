@@ -129,6 +129,13 @@ public class BSONSerde implements SerDe {
             BSONWritable b = (BSONWritable) blob;
             LOG.debug("Got a BSONWritable: " + b);
             doc = (BSONObject) b.getDoc();
+            if (doc.containsField("_id")) {
+                if (doc.get("_id") instanceof ObjectId) {
+                    doc.put("id", ((ObjectId) doc.get("_id")).toString());
+                } else
+                	doc.put("id", doc.get("_id"));
+            	doc.removeField("_id");
+            }
         } else {
             throw new SerDeException(getClass().toString() +
                     " requires a BSONWritable object, not " + blob.getClass());
@@ -136,6 +143,7 @@ public class BSONSerde implements SerDe {
 
         String colName = "";
         Object value;
+        
         for (int c = 0; c < numColumns; c++) {
             try {
                 colName = columnNames.get(c);
@@ -196,6 +204,15 @@ public class BSONSerde implements SerDe {
                     }
                     value = arr;
                 } else if (ti.getTypeName().startsWith(Constants.MAP_TYPE_NAME)) {
+                    // Hack in case embedded doc has _id, acting weird
+                	//BSONObject 
+                    if (doc.containsField("_id")) {
+                        if (doc.get("_id") instanceof ObjectId) {
+                            doc.put("id", ((ObjectId) doc.get("_id")).toString());
+                        } else
+                        	doc.put("id", doc.get("_id"));
+                    	doc.removeField("_id");
+                    }
                     value = ((BSONObject) doc.get(colName)).toMap();
                 } else if (ti.getTypeName().startsWith(Constants.STRUCT_TYPE_NAME)) {
                     //value = ((BSONObject) doc).toMap();
