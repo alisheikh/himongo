@@ -17,6 +17,7 @@ package org.uv.himongo;
  */
 
 import org.uv.himongo.io.BSONWritable;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -24,18 +25,25 @@ import org.apache.hadoop.hive.serde.Constants;
 import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
+import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.bson.BSONObject;
+import org.bson.BasicBSONObject;
 import org.bson.types.BasicBSONList;
 import org.bson.types.ObjectId;
 
+import java.sql.Timestamp;
 import java.util.*;
+import java.util.Map.Entry;
 
 public class BSONSerde implements SerDe {
 
@@ -65,6 +73,11 @@ public class BSONSerde implements SerDe {
     private boolean lastOperationDeserialize;
 
     private boolean test = false;
+    public Map<String, String> hiveToMongo;
+    
+    private static final int BSON_NUM = 8;
+    private static final String OID = "oid";
+    private static final String BSON_TYPE = "bsontype";
 
     public void initialize(Configuration sysProps, Properties tblProps)
                                                 throws SerDeException {
@@ -124,6 +137,7 @@ public class BSONSerde implements SerDe {
         LOG.info("Deserializing BSON Row with Class: " + blob.getClass());
 
         BSONObject doc;
+        Base64 base64 = new Base64(true);
 
         if (blob instanceof BSONWritable) {
             BSONWritable b = (BSONWritable) blob;
@@ -131,9 +145,9 @@ public class BSONSerde implements SerDe {
             doc = (BSONObject) b.getDoc();
             if (doc.containsField("_id")) {
                 if (doc.get("_id") instanceof ObjectId) {
-                    doc.put("id", ((ObjectId) doc.get("_id")).toString());
+                	doc.put("id", (base64.encodeToString(((ObjectId) doc.get("_id")).toByteArray())));
                 } else
-                	doc.put("id", doc.get("_id"));
+                	doc.put("id", doc.get("_id").toString());
             	doc.removeField("_id");
             }
         } else {
@@ -142,7 +156,7 @@ public class BSONSerde implements SerDe {
         }
 
         String colName = "";
-        Object value;
+        Object value = null;
         
         for (int c = 0; c < numColumns; c++) {
             try {
@@ -160,7 +174,9 @@ public class BSONSerde implements SerDe {
                         } 
                     }
                 }
-                if (ti.getTypeName().equalsIgnoreCase(
+                if (doc.get(colName) instanceof ObjectId) {
+                	value = null;
+                } if (ti.getTypeName().equalsIgnoreCase(
                                 Constants.DOUBLE_TYPE_NAME)) {
                     value = (Double) doc.get(colName);
                 } else if (ti.getTypeName().equalsIgnoreCase(
@@ -187,7 +203,7 @@ public class BSONSerde implements SerDe {
                     value = (Boolean) doc.get(colName);
                 } else if (ti.getTypeName().equalsIgnoreCase(
                                 Constants.STRING_TYPE_NAME)) {
-                    value = (String) doc.get(colName);
+            		value = (String) doc.get(colName);
                 } else if (ti.getTypeName().equalsIgnoreCase(
                         Constants.DATE_TYPE_NAME) ||
                         ti.getTypeName().equalsIgnoreCase(
@@ -204,16 +220,11 @@ public class BSONSerde implements SerDe {
                     }
                     value = arr;
                 } else if (ti.getTypeName().startsWith(Constants.MAP_TYPE_NAME)) {
-                    // Hack in case embedded doc has _id, acting weird
-                	//BSONObject 
-                    if (doc.containsField("_id")) {
-                        if (doc.get("_id") instanceof ObjectId) {
-                            doc.put("id", ((ObjectId) doc.get("_id")).toString());
-                        } else
-                        	doc.put("id", doc.get("_id"));
-                    	doc.removeField("_id");
-                    }
-                    value = ((BSONObject) doc.get(colName)).toMap();
+                	try {
+                		value = ((BSONObject) doc.get(colName)).toMap();
+                	} catch(Exception e) {
+                		value = null;
+                	}
                 } else if (ti.getTypeName().startsWith(Constants.STRUCT_TYPE_NAME)) {
                     //value = ((BSONObject) doc).toMap();
                     throw new IllegalArgumentException("Unable to currently work with structs.");
@@ -225,6 +236,7 @@ public class BSONSerde implements SerDe {
                 row.set(c, value);
             } catch (Exception e) {
                 LOG.error("Exception decoding row at column " + colName, e);
+                row.set(c, null);
             }
         }
 
@@ -240,13 +252,158 @@ public class BSONSerde implements SerDe {
         return Text.class;
     }
 
-    public Writable serialize(Object obj, ObjectInspector objInspector)
-                                throws SerDeException {
-        LOG.info("-----------------------------");
-        LOG.info("***** serialize BSON ********");
-        LOG.info("-----------------------------");
+    @Override
+    public Writable serialize(Object obj, ObjectInspector oi)
+        throws SerDeException {
+        return new BSONWritable((BSONObject) serializeStruct(obj, 
+                    (StructObjectInspector) oi, ""));
+    }
+    
 
+    public Object serializeObject(Object obj, ObjectInspector oi, String ext) {
+        switch (oi.getCategory()) {
+            case LIST:
+                return serializeList(obj, (ListObjectInspector) oi, ext);
+            case MAP:
+                return serializeMap(obj, (MapObjectInspector) oi, ext);
+            case PRIMITIVE:
+                return serializePrimitive(obj, (PrimitiveObjectInspector) oi);
+            case STRUCT:
+                return serializeStruct(obj, (StructObjectInspector) oi, ext);
+            case UNION:
+            default:
+                LOG.error("Cannot serialize " + obj.toString() + " of type " + obj.toString());
+                break;
+        }
         return null;
+    }
+    
+
+    private Object serializeList(Object obj, ListObjectInspector oi, String ext) {
+        BasicBSONList list = new BasicBSONList();
+        List<?> field = oi.getList(obj);
+        ObjectInspector elemOI = oi.getListElementObjectInspector();
+    
+        for (Object elem : field) {
+            list.add(serializeObject(elem, elemOI, ext));
+        }
+    
+        return list;
+    }
+    
+
+    /**
+     * Turn struct obj into a BasicBSONObject
+     */
+    private Object serializeStruct(Object obj, 
+            StructObjectInspector structOI, 
+            String ext) {
+        if (ext.length() > 0 && isObjectIdStruct(obj, structOI)) {
+            
+            String objectIdString = "";
+            for (StructField s : structOI.getAllStructFieldRefs()) {
+                if (s.getFieldName().equals(this.OID)) {
+                    objectIdString = structOI.getStructFieldData(obj, s).toString();
+                    break;
+                }
+            }
+            return new ObjectId(objectIdString);
+        } else {
+        
+        	BSONObject bsonObject = new BasicBSONObject();
+            // fields is the list of all variable names and information within the struct obj
+            List<? extends StructField> fields = structOI.getAllStructFieldRefs();
+        
+            for (int i = 0 ; i < fields.size() ; i++) {
+                StructField field = fields.get(i);
+        
+                String fieldName, hiveMapping;
+                
+                // get corresponding mongoDB field  
+                if (ext.length() == 0) {
+                    fieldName = this.columnNames.get(i);
+                    hiveMapping = fieldName;
+                } else {
+                    fieldName = field.getFieldName();
+                    hiveMapping = (ext + "." + fieldName);
+                }
+                
+                ObjectInspector fieldOI = field.getFieldObjectInspector();
+                Object fieldObj = structOI.getStructFieldData(obj, field);
+                
+                if (this.hiveToMongo != null && this.hiveToMongo.containsKey(hiveMapping)) {
+                    String mongoMapping = this.hiveToMongo.get(hiveMapping);
+                    int lastDotPos = mongoMapping.lastIndexOf(".");
+                    String lastMapping = lastDotPos == -1 ? mongoMapping :  mongoMapping.substring(lastDotPos+1);
+                    bsonObject.put(lastMapping,
+                                   serializeObject(fieldObj, fieldOI, hiveMapping));
+                } else {
+                    bsonObject.put(fieldName, 
+                                   serializeObject(fieldObj, fieldOI, hiveMapping));   
+                }
+            }
+            
+            return bsonObject;
+        }
+    }    
+    
+    /**
+     *
+     * Given a struct, look to se if it contains the fields that a ObjectId
+     * struct should contain
+     */
+    private boolean isObjectIdStruct(Object obj, StructObjectInspector structOI) {
+        List<? extends StructField> fields = structOI.getAllStructFieldRefs();
+    
+        // If the struct are of incorrect size, then there's no need to create
+        // a list of names
+        if (fields.size() != 2) {
+            return false;
+        }
+        boolean hasOID = false;
+        boolean isBSONType = false;
+        for (StructField s : fields) {
+            String fieldName = s.getFieldName();
+            if (fieldName.equals(this.OID)) {
+                hasOID = true;
+            } else if (fieldName.equals(this.BSON_TYPE)) {
+                String num = structOI.getStructFieldData(obj, s).toString();
+                isBSONType = (Integer.parseInt(num) == this.BSON_NUM);
+            }
+
+        }
+        return hasOID && isBSONType;
+    }  
+    
+
+    /**
+     * For a map of <String, Object> convert to an embedded document 
+     */
+    private Object serializeMap(Object obj, MapObjectInspector mapOI, String ext) {
+        BasicBSONObject bsonObject = new BasicBSONObject();
+        ObjectInspector mapValOI = mapOI.getMapValueObjectInspector();
+    
+        // Each value is guaranteed to be of the same type
+        for (Entry<?, ?> entry : mapOI.getMap(obj).entrySet()) {        
+            String field = entry.getKey().toString();
+            Object value = serializeObject(entry.getValue(), mapValOI, ext);
+            bsonObject.put(field, value);
+        }
+        return bsonObject;
+    }
+
+    /**
+     * For primitive types, depending on the primitive type, 
+     * cast it to types that Mongo supports
+     */
+    private Object serializePrimitive(Object obj, PrimitiveObjectInspector oi) {
+        switch (oi.getPrimitiveCategory()) {
+            case TIMESTAMP:
+                Timestamp ts = (Timestamp) oi.getPrimitiveJavaObject(obj);
+                return new Date(ts.getTime());
+            default:
+                return oi.getPrimitiveJavaObject(obj);
+        }
     }
 
     public SerDeStats getSerDeStats() {

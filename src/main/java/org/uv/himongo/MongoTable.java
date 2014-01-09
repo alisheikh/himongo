@@ -14,14 +14,18 @@ public class MongoTable {
 	private DB db;
 	private DBCollection collection;
 
+	@SuppressWarnings("deprecation")
 	public MongoTable(String host, String port, String dbName, String dbUser, String dbPasswd,
 			String collectionName) {
 		try {
 			this.db = new Mongo(host, Integer.valueOf(port)).getDB(dbName);
+			this.db.slaveOk();
 			boolean auth = false;
-			if(dbUser != null && !"".equals(dbUser.trim())) auth = db.authenticate(dbUser, dbPasswd.toCharArray());
-			if(!auth){
-        throw new RuntimeException("database auth failed with user:" + dbUser + " and passwd:" + dbPasswd);
+			if (dbUser != null) {
+				if(dbUser != null && !"".equals(dbUser.trim())) auth = db.authenticate(dbUser, dbPasswd.toCharArray());
+				if(!auth){
+	        throw new RuntimeException("database auth failed with user:" + dbUser + " and passwd:" + dbPasswd);
+				}
 			}
 			this.collection = db.getCollection(collectionName);
 		} catch (UnknownHostException e) {
