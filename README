@@ -1,6 +1,7 @@
 
 This is a hacked implementation of Hive over MongoDB.
-
+Supports read and write to mongo from Hive.
+Updated to support Hive 0.13 on Hadoop 2.
 
 Installation
 ------------------
