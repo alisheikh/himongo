@@ -16,15 +16,13 @@ import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.hadoop.hive.ql.metadata.HiveException;
-import org.apache.hadoop.hive.ql.metadata.HiveStorageHandler;
+import org.apache.hadoop.hive.ql.metadata.DefaultStorageHandler;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
-import org.apache.hadoop.hive.ql.security.authorization.HiveAuthorizationProvider;
-import org.apache.hadoop.hive.serde2.SerDe;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.OutputFormat;
 
-public class MongoStorageHandler implements HiveStorageHandler {
+public class MongoStorageHandler extends DefaultStorageHandler {
 	private Configuration mConf = null;
 
 	public MongoStorageHandler() {
@@ -53,7 +51,7 @@ public class MongoStorageHandler implements HiveStorageHandler {
 	}
 
 	@Override
-	public Class<? extends SerDe> getSerDeClass() {
+	public Class<? extends AbstractSerDe> getSerDeClass() {
 		return BSONSerde.class;
 	}
 
@@ -127,12 +125,5 @@ public class MongoStorageHandler implements HiveStorageHandler {
 			Map<String, String> arg1) {
 		configureTableJobProperties(arg0,arg1);
 		
-	}
-
-	@Override
-	public HiveAuthorizationProvider getAuthorizationProvider()
-			throws HiveException {
-		// TODO Auto-generated method stub
-		return null;
 	}
 }

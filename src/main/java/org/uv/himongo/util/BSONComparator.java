@@ -1,5 +1,4 @@
 package org.uv.himongo.util;
-import java.util.Comparator;
 import org.bson.LazyBSONDecoder;
 import org.bson.LazyBSONCallback;
 import org.bson.BSONObject;

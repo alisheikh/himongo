@@ -13,7 +13,6 @@
 
 package org.uv.himongo.util;
 
-import com.mongodb.*;
 import org.apache.commons.logging.*;
 import org.bson.*;
 

@@ -22,6 +22,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
@@ -45,7 +46,7 @@ import java.sql.Timestamp;
 import java.util.*;
 import java.util.Map.Entry;
 
-public class BSONSerde implements SerDe {
+public class BSONSerde extends AbstractSerDe {
 
     private static final Log LOG = LogFactory.getLog(BSONSerde.class.getName());
 

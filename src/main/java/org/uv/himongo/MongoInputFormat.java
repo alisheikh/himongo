@@ -67,7 +67,7 @@ public class MongoInputFormat extends
 	      if (filterExprSerialized != null){
 	    	  //System.err.println("=======filter expr is " + filterExprSerialized);
 	    	  ExprNodeDesc filterExpr =
-	    	      Utilities.deserializeExpression(filterExprSerialized, conf);
+	    	      Utilities.deserializeExpression(filterExprSerialized);
 	    	  /*String columnNameProperty = conf.get(
 	    		      org.apache.hadoop.hive.serde.Constants.LIST_COLUMNS);
 	    	  System.err.println("======list columns:" + columnNameProperty);*/

@@ -1,6 +1,7 @@
 package org.uv.himongo;
 
 import java.io.IOException;
+
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator.RecordWriter;
 import org.apache.hadoop.io.Writable;
 import org.uv.himongo.io.BSONWritable;
